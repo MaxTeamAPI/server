@@ -1,5 +1,3 @@
-from textwrap import dedent
-
 class Static:
     """Тут просто статические константы для их дальнейшего использования"""
     def __init__(self):
@@ -80,33 +78,33 @@ class Static:
 
     ### Сообщения бота
     BOT_MESSAGES = {
-        "welcome_already_registered": dedent("""
+        "welcome_already_registered": """
             👋 С возвращением в OpenMAX!
             Ваш номер, если забыли: {phone}
-        """).strip(),
-        "welcome_new_user": dedent("""
+        """,
+        "welcome_new_user": """
             👋 Добро пожаловать на этот инстанс OpenMAX!
             У вас ещё нет аккаунта. Используйте /register для создания.
-        """).strip(),
-        "registration_success": dedent("""
+        """,
+        "registration_success": """
             ✅ Регистрация завершена!
             Ваш новый номер: {new_phone}
             Все коды для авторизации будут приходить сюда.
-        """).strip(),
-        "account_already_exists": dedent("""
+        """,
+        "account_already_exists": """
             ❌ У вас уже есть аккаунт.
-        """).strip(),
-        "id_not_whitelisted": dedent("""
+        """,
+        "id_not_whitelisted": """
             ❌ Ваш ID не находится в белом списке.
-        """).strip(),
-        "internal_error": dedent("""
+        """,
+        "internal_error": """
             ❌ Ошибка при регистрации аккаунта.
-        """).strip(),
-        "incoming_code": dedent("""
+        """,
+        "incoming_code": """
             Новая попытка входа в OpenMAX с вашим номером {phone}
             Код: {code}
             ❗️ Никому не сообщайте его, иначе можете потерять свой аккаунт!
-        """).strip()
+        """
     }
 
     ### Причины для жалоб

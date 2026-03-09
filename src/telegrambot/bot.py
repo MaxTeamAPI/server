@@ -3,6 +3,7 @@ import random
 import json
 import time
 from telebot.async_telebot import AsyncTeleBot
+from textwrap import dedent
 from common.static import Static
 from common.sql_queries import SQLQueries
 
@@ -109,7 +110,7 @@ class TelegramBot:
                         )
     
     def get_bot_message(self, msg_type):
-        return self.static.BOT_MESSAGES.get(msg_type)
+        return dedent(self.static.BOT_MESSAGES.get(msg_type)).strip()
 
     async def start(self):
         if self.enabled == True:
