@@ -6,12 +6,13 @@ from tamtam_ws.proto import Proto
 from tamtam_ws.processors import Processors
 
 class TTWSServer:
-    def __init__(self, host, port, db_pool=None, clients={}, send_event=None):
+    def __init__(self, host, port, db_pool=None, clients={}, send_event=None, origins=None):
         self.host = host
         self.port = port
         self.proto = Proto()
         self.processors = Processors(db_pool=db_pool, clients=clients, send_event=send_event)
         self.logger = logging.getLogger(__name__)
+        self.origins = origins
 
     async def handle_client(self, websocket):
         deviceType = None
@@ -21,11 +22,17 @@ class TTWSServer:
             # Распаковываем пакет
             packet = self.proto.unpack_packet(message)
 
+            # Если ничего не извлекли
+            if packet is None:
+                self.logger.error(f"Не удалось распаковать пакет - {message}")
+                return
+
             # Валидируем структуру пакета
             try:
                 MessageModel.model_validate(packet)
-            except ValidationError as e:
-                self.logger.error(e)
+            except ValidationError as error:
+                self.logger.error(f"Произошла ошибка при валидации структуры пакета: {error}")
+                return
                 
             # Извлекаем данные из пакета
             seq = packet['seq']
@@ -44,12 +51,6 @@ class TTWSServer:
                     # УДАЛЯЕМ MYTRACKER ИЗ TAMTAM ТАМ ВИРУС
                     # майтрекер отправляет все ваши сообщения на сервер барака обамы. немедленно удаляем!!!
                     await self.processors.process_telemetry(payload, seq, websocket)
-                # case self.proto.AUTH_REQUEST:
-                #     await self.processors.process_auth_request(payload, seq, websocket)
-                # case self.proto.VERIFY_CODE:
-                #     await self.processors.process_verify_code(payload, seq, websocket)
-                # case self.proto.FINAL_AUTH:
-                #     await self.processors.process_final_auth(payload, seq, websocket, deviceType, deviceName)
 
                 # лан я пойду. пока
                 # а ок
@@ -57,5 +58,8 @@ class TTWSServer:
     async def start(self):
         self.logger.info(f"Вебсокет запущен на порту {self.port}")
 
-        async with serve(self.handle_client, self.host, self.port):
+        async with serve(handler=self.handle_client, 
+                         host=self.host, 
+                         port=self.port,
+                         origins=self.origins):
             await asyncio.Future()
