@@ -43,7 +43,7 @@
     "headerUserAgent": "юзерагент устройства",
     "timezone": "часовой пояс"
   },
-  "deviceId": "ID приложения"
+  "deviceId": "ID устройства"
 }
 ```
 
