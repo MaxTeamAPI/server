@@ -893,3 +893,74 @@ class Processors:
 
         # Отправляем пакет
         await self._send(writer, packet)
+
+
+    async def process_update_profile(self, payload, seq, writer, userId, userPhone):
+        # Валидируем входные данные
+        try:
+            UpdateProfilePayloadModel.model_validate(payload)
+        except Exception as e:
+            await self._send_error(seq, self.proto.PROFILE, self.error_types.INVALID_PAYLOAD, writer)
+            return
+
+        # Извлекаем поля из пакета (каждое может быть None)
+        description = payload.get("description")
+        firstName = payload.get("firstName")
+        lastName = payload.get("lastName")
+
+        # Обновляем только те поля, которые пришли в запросе
+        async with self.db_pool.acquire() as conn:
+            async with conn.cursor() as cursor:
+                if description is not None:
+                    # При изменении описания также обновляем время последнего изменения профиля
+                    await cursor.execute(
+                        "UPDATE users SET description = %s, updatetime = %s WHERE id = %s",
+                        (description, int(time.time() * 1000), userId)
+                    )
+                if firstName is not None:
+                    await cursor.execute(
+                        "UPDATE users SET firstname = %s WHERE id = %s",
+                        (firstName, userId)
+                    )
+                if lastName is not None:
+                    await cursor.execute(
+                        "UPDATE users SET lastname = %s WHERE id = %s",
+                        (lastName, userId)
+                    )
+
+                # Получаем актуальные данные пользователя после обновления
+                await cursor.execute("SELECT * FROM users WHERE id = %s", (userId,))
+                user = await cursor.fetchone()
+
+        # Формируем URL аватарки если она есть
+        photoId = None if not user.get("avatar_id") else int(user.get("avatar_id"))
+        avatar_url = None if not photoId else self.config.avatar_base_url + str(photoId)
+
+        # Генерируем профиль для отправки клиенту
+        profile = self.tools.generate_profile(
+            id=user.get("id"),
+            phone=int(user.get("phone")),
+            avatarUrl=avatar_url,
+            photoId=photoId,
+            updateTime=int(user.get("updatetime")),
+            firstName=user.get("firstname"),
+            lastName=user.get("lastname"),
+            options=json.loads(user.get("options")),
+            description=user.get("description"),
+            accountStatus=int(user.get("accountstatus")),
+            profileOptions=json.loads(user.get("profileoptions")),
+            includeProfileOptions=True,
+            username=user.get("username")
+        )
+
+        # Отправляем ответ на запрос (CMD_OK)
+        packet = self.proto.pack_packet(
+            cmd=self.proto.CMD_OK, seq=seq, opcode=self.proto.PROFILE, payload=profile
+        )
+        await self._send(writer, packet)
+
+        # Отправляем уведомление об изменении профиля (CMD_NOF)
+        notif_packet = self.proto.pack_packet(
+            cmd=self.proto.CMD_NOF, seq=0, opcode=self.proto.NOTIF_PROFILE, payload=profile
+        )
+        await self._send(writer, notif_packet)

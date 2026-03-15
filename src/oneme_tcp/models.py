@@ -94,3 +94,8 @@ class SearchUsersPayloadModel(pydantic.BaseModel):
 
 class ComplainReasonsGetPayloadModel(pydantic.BaseModel):
     complainSync: int
+
+class UpdateProfilePayloadModel(pydantic.BaseModel):
+    description: str = None
+    firstName: str = None
+    lastName: str = None

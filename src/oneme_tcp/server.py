@@ -142,6 +142,10 @@ class OnemeMobileServer:
                         await self.auth_required(
                             userPhone, self.processors.process_complain_reasons_get, payload, seq, writer
                         )
+                    case self.proto.PROFILE:
+                        await self.processors.process_update_profile(
+                            payload, seq, writer, userId=userId, userPhone=userPhone
+                        )
                     case _:
                         self.logger.warning(f"Неизвестный опкод {opcode}")
         except Exception as e:
