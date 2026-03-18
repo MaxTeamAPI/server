@@ -1081,21 +1081,30 @@ class Processors:
         getMessages = payload.get("getMessages", True)
         messages = []
 
+        # Если пользователь хочет получить историю из избранного,
+        # то выставляем в качестве ID чата его ID
+        if chatId == 0: 
+            chatId = senderId
+
         # Проверяем, существует ли чат
         async with self.db_pool.acquire() as conn:
             async with conn.cursor() as cursor:
-                await cursor.execute("SELECT * FROM chats WHERE id = %s", (chatId,))
-                chat = await cursor.fetchone()
+                # Проверяем состоит ли пользователь в чате,
+                # только в случае того, если это не избранное
+                if chatId != senderId:
+                    await cursor.execute("SELECT * FROM chats WHERE id = %s", (chatId,))
+                    chat = await cursor.fetchone()
 
-                if not chat:
-                    await self._send_error(seq, self.proto.CHAT_HISTORY, self.error_types.CHAT_NOT_FOUND, writer)
-                    return
+                    # Выбрасываем ошибку, если чата нет
+                    if not chat:
+                        await self._send_error(seq, self.proto.CHAT_HISTORY, self.error_types.CHAT_NOT_FOUND, writer)
+                        return
 
-                # Проверяем, является ли пользователь участником чата
-                participants = json.loads(chat.get("participants"))
-                if int(senderId) not in participants:
-                    await self._send_error(seq, self.proto.CHAT_HISTORY, self.error_types.CHAT_NOT_ACCESS, writer)
-                    return
+                    # Проверяем, является ли пользователь участником чата
+                    participants = json.loads(chat.get("participants"))
+                    if int(senderId) not in participants:
+                        await self._send_error(seq, self.proto.CHAT_HISTORY, self.error_types.CHAT_NOT_ACCESS, writer)
+                        return
 
                 # Если запрошены сообщения
                 if getMessages:

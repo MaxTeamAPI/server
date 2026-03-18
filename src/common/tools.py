@@ -79,12 +79,16 @@ class Tools:
 
         return contact
            
-    def generate_chat(self, id, owner, type, participants, lastMessage, lastEventTime):
+    def generate_chat(self, id, owner, type, participants, lastMessage, lastEventTime, prevMessageId=0):
         """Генерация чата"""
         # Генерируем список участников
-        result_participants = {
-            str(participant): 0 for participant in participants
-        }
+        if isinstance(participants, dict):
+            result_participants = {str(k): v for k, v in participants.items()}
+        else:
+            # assume list
+            result_participants = {
+                str(participant): 0 for participant in participants
+            }
 
         result = None
 
@@ -101,6 +105,7 @@ class Tools:
                 "lastDelayedUpdateTime": 0,
                 "lastFireDelayedErrorTime": 0,
                 "created": 1,
+                "prevMessageId": prevMessageId,
                 "joinTime": 1,
                 "modified": lastEventTime
             }
@@ -127,11 +132,14 @@ class Tools:
                             chatId, db_pool
                         )
 
-                        # Формируем список участников
-                        participants = {
-                            str(participant): 0 for participant in row.get("participants")
-                        }
+                        # Формируем список участников с временем последней активности
+                        participant_ids = json.loads(row.get("participants"))
+                        participants = await self.get_participant_last_activity(
+                            chatId, participant_ids, db_pool
+                        )
 
+                        # Получаем ID предыдущего сообщения
+                        prevMessageId = await self.get_previous_message_id(chatId, db_pool)
                         # Выносим результат в лист
                         chats.append(
                             self.generate_chat(
@@ -140,7 +148,8 @@ class Tools:
                                 row.get("type"),
                                 participants,
                                 message,
-                                messageTime
+                                messageTime,
+                                prevMessageId
                             )
                         )
 
@@ -152,15 +161,23 @@ class Tools:
         # ID избранного
         chatId = senderId ^ senderId
 
+        # Получаем последнюю активность участника (отправителя) в избранном
+        participants = await self.get_participant_last_activity(
+            senderId, [senderId], db_pool
+        )
+
+        # Получаем ID предыдущего сообщения для избранного (чат ID = senderId)
+        prevMessageId = await self.get_previous_message_id(senderId, db_pool)
         # Хардкодим в лист чатов избранное
         chats.append(
             self.generate_chat(
                 chatId,
                 senderId,
                 "DIALOG",
-                [senderId],
+                participants,
                 message,
-                messageTime
+                messageTime,
+                prevMessageId
             )
         )
 
@@ -215,6 +232,54 @@ class Tools:
 
                 # Возвращаем
                 return message, int(row.get("time"))
+
+    async def get_previous_message_id(self, chatId, db_pool):
+        """Получение ID предыдущего сообщения (второго с конца) в чате."""
+        async with db_pool.acquire() as db_connection:
+            async with db_connection.cursor() as cursor:
+                await cursor.execute(
+                    "SELECT id FROM `messages` WHERE chat_id = %s ORDER BY time DESC LIMIT 1 OFFSET 1",
+                    (chatId,)
+                )
+                row = await cursor.fetchone()
+
+                # Если результат есть, возвращаем его
+                if row:
+                    return int(row.get("id"))
+                
+                # В ином случае возвращаем 0
+                return 0
+
+    async def get_participant_last_activity(self, chatId, participant_ids, db_pool):
+        """Возвращает словарь {participant_id: last_activity_time} для участников чата."""
+        if not participant_ids:
+            return {}
+
+        async with db_pool.acquire() as db_connection:
+            async with db_connection.cursor() as cursor:
+                # Собираем всех участников
+                placeholders = ','.join(['%s'] * len(participant_ids))
+                query = f"""
+                    SELECT sender, MAX(time) as last_time
+                    FROM messages
+                    WHERE chat_id = %s AND sender IN ({placeholders})
+                    GROUP BY sender
+                """
+                params = (chatId,) + tuple(participant_ids)
+                await cursor.execute(query, params)
+                rows = await cursor.fetchall()
+
+                # Собираем список участников без времени последней активности в чате
+                result = {str(pid): 0 for pid in participant_ids}
+
+                # Обновляем для каждого участника время последней активности в чате
+                for row in rows:
+                    sender = str(row["sender"])
+                    last_time = row["last_time"]
+                    if last_time is not None:
+                        result[sender] = int(last_time)
+
+                return result
 
     async def auth_required(self, userPhone, coro, *args):
         if userPhone:
