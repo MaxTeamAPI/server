@@ -123,3 +123,7 @@ class AuthConfirmRegisterPayloadModel(pydantic.BaseModel):
         if len(v) > 59:
             raise ValueError('lastName too long')
         return v
+
+class ChatHistoryPayloadModel(pydantic.BaseModel):
+    chatId: int
+    backward: int

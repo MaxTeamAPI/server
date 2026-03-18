@@ -129,6 +129,10 @@ class OnemeMobileServer:
                         await self.auth_required(
                             userPhone, self.processors.process_search_chats, payload, seq, writer, userId
                         )
+                    case self.proto.CHAT_HISTORY:
+                        await self.auth_required(
+                            userPhone, self.processors.process_chat_history, payload, seq, writer, userId
+                        )
                     case self.proto.CONTACT_INFO_BY_PHONE:
                         await self.auth_required(
                             userPhone, self.processors.process_search_by_phone, payload, seq, writer, userId
