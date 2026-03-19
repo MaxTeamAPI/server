@@ -27,7 +27,6 @@ class BaseProcessor:
             self.proto = WebProto()
 
     async def _send(self, writer, packet):
-        """Send packet to client."""
         try:
             writer.write(packet)
             await writer.drain()
@@ -35,7 +34,6 @@ class BaseProcessor:
             pass
 
     async def _send_error(self, seq, opcode, error_type, writer):
-        """Send error response."""
         payload = self.static.ERROR_TYPES.get(error_type, {
             "localizedMessage": "Неизвестная ошибка",
             "error": "unknown.error",

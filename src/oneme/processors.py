@@ -73,14 +73,7 @@ class Processors:
         payload = {
             "location": "RU",
             "app-update-type": 0, # 1 = принудительное обновление
-            "reg-country-code": [
-                # Список стран, который отдает официальный сервер
-                "AZ", "AM", "KZ", "KG", "MD", "TJ", "UZ", "GE", "TH", "TR", 
-                "TM", "AE", "LA", "MY", "ID", "CU", "KH", "VN", 
-
-                # Список стран, который приделали уже мы                 
-                "US", "CA", "UA"
-            ],
+            "reg-country-code": self.static.REG_COUNTRY_CODES,
             "phone-auto-complete-enabled": False,
             "lang": True
         }
