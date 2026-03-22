@@ -3,6 +3,7 @@ from common.proto_tcp import MobileProto
 from tamtam.processors import Processors
 from common.rate_limiter import RateLimiter
 from common.opcodes import Opcodes
+from common.tools import Tools
 
 class TTMobileServer:
     def __init__(self, host="0.0.0.0", port=443, ssl_context=None, db_pool=None, clients={}, send_event=None):
@@ -18,6 +19,7 @@ class TTMobileServer:
 
         self.proto = MobileProto()
         self.processors = Processors(db_pool=db_pool, clients=clients, send_event=send_event)
+        self.auth_required = Tools().auth_required
 
         # rate limiter
         self.auth_rate_limiter = RateLimiter(max_attempts=5, window_seconds=60)
@@ -97,6 +99,10 @@ class TTMobileServer:
 
                             if userPhone:
                                 await self._finish_auth(writer, address, userPhone, userId)
+                    case self.opcodes.CONTACT_INFO:
+                        await self.auth_required(
+                            userPhone, self.processors.contact_info, payload, seq, writer
+                        )
                     case _:
                         self.logger.warning(f"Неизвестный опкод {opcode}")
         except Exception as e:

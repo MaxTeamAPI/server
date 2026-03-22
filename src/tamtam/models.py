@@ -32,3 +32,6 @@ class FinalAuthPayloadModel(pydantic.BaseModel):
 class LoginPayloadModel(pydantic.BaseModel):
     interactive: bool
     token: str
+
+class SearchUsersPayloadModel(pydantic.BaseModel):
+    contactIds: list
