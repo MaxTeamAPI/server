@@ -1,5 +1,6 @@
+import pydantic
 from classes.baseprocessor import BaseProcessor
-from tamtam.models import HelloPayloadModel
+from tamtam.models import HelloPayloadModel, PingPayloadModel
 
 class MainProcessors(BaseProcessor):
     async def session_init(self, payload, seq, writer):
@@ -7,7 +8,7 @@ class MainProcessors(BaseProcessor):
         # Валидируем данные пакета
         try:
             HelloPayloadModel.model_validate(payload)
-        except Exception as e:
+        except pydantic.ValidationError as error:
             await self._send_error(seq, self.opcodes.SESSION_INIT,
                                    self.error_types.INVALID_PAYLOAD, writer)
             return None, None
@@ -34,3 +35,31 @@ class MainProcessors(BaseProcessor):
         # Отправляем
         await self._send(writer, packet)
         return device_type, device_name
+    
+    async def ping(self, payload, seq, writer):
+        """Обработчик пинга"""
+        # Валидируем данные пакета
+        try:
+            PingPayloadModel.model_validate(payload)
+        except pydantic.ValidationError as error:
+            self.logger.error(f"Возникли ошибки при валидации пакета: {error}")
+            await self._send_error(seq, self.opcodes.PING, self.error_types.INVALID_PAYLOAD, writer)
+            return
+
+        # Собираем пакет
+        packet = self.proto.pack_packet(
+            cmd=self.proto.CMD_OK, seq=seq, opcode=self.opcodes.PING, payload=None
+        )
+
+        # Отправляем
+        await self._send(writer, packet)
+
+    async def log(self, payload, seq, writer):
+        """Обработчик лога"""
+        # Собираем пакет
+        packet = self.proto.pack_packet(
+            cmd=self.proto.CMD_OK, seq=seq, opcode=self.opcodes.LOG, payload=None
+        )
+
+        # Отправляем
+        await self._send(writer, packet)

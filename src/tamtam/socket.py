@@ -76,6 +76,10 @@ class TTMobileServer:
                 match opcode:
                     case self.opcodes.SESSION_INIT:
                         deviceType, deviceName = await self.processors.session_init(payload, seq, writer)
+                    case self.opcodes.PING:
+                        await self.processors.ping(payload, seq, writer)
+                    case self.opcodes.LOG:
+                        await self.processors.log(payload, seq, writer)
                     case self.opcodes.AUTH_REQUEST:
                         if not self.auth_rate_limiter.is_allowed(address[0]):
                             await self.processors._send_error(seq, self.opcodes.AUTH_REQUEST, self.processors.error_types.RATE_LIMITED, writer)

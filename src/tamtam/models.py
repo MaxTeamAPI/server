@@ -35,3 +35,6 @@ class LoginPayloadModel(pydantic.BaseModel):
 
 class SearchUsersPayloadModel(pydantic.BaseModel):
     contactIds: list
+
+class PingPayloadModel(pydantic.BaseModel):
+    interactive: bool
