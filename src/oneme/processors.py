@@ -1007,7 +1007,20 @@ class Processors:
         
         # TODO: когда-то взяться за звонки
 
-        await self._send_error(seq, self.opcodes.OK_TOKEN, self.error_types.NOT_IMPLEMENTED, writer)
+        # Данные пакета
+        payload = {
+            "token": secrets.token_urlsafe(128),
+            "token_lifetime_ts": int(time.time() * 1000),
+            "token_refresh_ts": int(time.time() * 1000)
+        }
+
+        # Создаем пакет
+        packet = self.proto.pack_packet(
+            cmd=self.proto.CMD_OK, seq=seq, opcode=self.opcodes.OK_TOKEN, payload=payload
+        )
+
+        # Отправляем
+        await self._send(writer, packet)
 
     async def msg_typing(self, payload, seq, writer, senderId):
         """Обработчик события печатания"""
