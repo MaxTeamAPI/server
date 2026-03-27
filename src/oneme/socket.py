@@ -188,7 +188,7 @@ class OnemeMobileServer:
                     "writer": writer,
                     "ip": addr[0],
                     "port": addr[1],
-                    "protocol": "oneme_mobile"
+                    "protocol": "oneme"
                 }
             )
         else:
@@ -200,7 +200,7 @@ class OnemeMobileServer:
                         "writer": writer,
                         "ip": addr[0],
                         "port": addr[1],
-                        "protocol": "oneme_mobile"
+                        "protocol": "oneme"
                     }
                 ]
             }
