@@ -71,7 +71,7 @@ class MobileProto:
             "payload": payload,
         }
 
-    def pack_packet(self, ver: int = 10, cmd: int = 1, seq: int = 1, opcode: int = 6, payload: dict = None) -> bytes:
+    def pack_packet(self, ver: int = 10, cmd: int = 0x100, seq: int = 1, opcode: int = 6, payload: dict = None) -> bytes:
         # Запаковываем заголовок
         ver_b = ver.to_bytes(1, "big")
         cmd_b = cmd.to_bytes(2, "big")
