@@ -28,8 +28,12 @@ class BaseProcessor:
 
     async def _send(self, writer, packet):
         try:
-            writer.write(packet)
-            await writer.drain()
+            # Если объектом является вебсокет, то используем функцию send для отправки
+            if hasattr(writer, 'send'):
+                await writer.send(packet)
+            else: # В ином случае отправляем как в обычный сокет
+                writer.write(packet)
+                await writer.drain()
         except Exception:
             pass
 

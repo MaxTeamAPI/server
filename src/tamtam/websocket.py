@@ -1,14 +1,14 @@
-import asyncio
 import logging
 import traceback
-from common.proto_tcp import MobileProto
+import websockets
+from common.proto_web import WebProto
 from tamtam.processors import Processors
 from common.rate_limiter import RateLimiter
 from common.opcodes import Opcodes
 from common.tools import Tools
 
-class TTMobileServer:
-    def __init__(self, host, port, ssl_context, db_pool, clients, send_event):
+class TTWebSocketServer:
+    def __init__(self, host, port, clients, ssl_context, db_pool, send_event):
         self.host = host
         self.port = port
         self.ssl_context = ssl_context
@@ -19,20 +19,20 @@ class TTMobileServer:
 
         self.opcodes = Opcodes()
 
-        self.proto = MobileProto()
-        self.processors = Processors(db_pool=db_pool, clients=clients, send_event=send_event)
+        self.proto = WebProto()
+        self.processors = Processors(db_pool=db_pool, clients=clients, send_event=send_event, type="web")
         self.auth_required = Tools().auth_required
 
         # rate limiter
         self.auth_rate_limiter = RateLimiter(max_attempts=5, window_seconds=60)
 
-        self.read_timeout = 300 # Таймаут чтения из сокета (секунды)
-        self.max_read_size = 65536 # Максимальный размер данных из сокета
+        self.read_timeout = 300  # Таймаут чтения из websocket (секунды)
+        self.max_read_size = 65536  # Максимальный размер данных
 
-    async def handle_client(self, reader, writer):
-        """Функция для обработки подключений"""
+    async def handle_client(self, websocket, path):
+        """Функция для обработки WebSocket подключений"""
         # IP-адрес клиента
-        address = writer.get_extra_info("peername")
+        address = websocket.remote_address
         self.logger.info(f"Работаю с клиентом {address[0]}:{address[1]}")
 
         deviceType = None
@@ -43,31 +43,17 @@ class TTMobileServer:
         hashedToken = None
 
         try:
-            while True:
-                # Читаем новые данные из сокета (с таймаутом!)
-                try:
-                    data = await asyncio.wait_for(
-                        reader.read(self.max_read_size),
-                        timeout=self.read_timeout
-                    )
-                except asyncio.TimeoutError:
-                    self.logger.info(f"Таймаут соединения для {address[0]}:{address[1]}")
-                    break
-
-                # Если сокет закрыт - выходим из цикла
-                if not data:
-                    break
-
+            async for message in websocket:
                 # Проверяем размер данных
-                if len(data) > self.max_read_size:
-                    self.logger.warning(f"Пакет от {address[0]}:{address[1]} превышает лимит ({len(data)} байт)")
+                if len(message) > self.max_read_size:
+                    self.logger.warning(f"Пакет от {address[0]}:{address[1]} превышает лимит ({len(message)} байт)")
                     break
 
                 # Распаковываем данные
-                packet = self.proto.unpack_packet(data)
+                packet = self.proto.unpack_packet(message)
 
                 # Если пакет невалидный — пропускаем
-                if packet is None:
+                if not packet:
                     self.logger.warning(f"Невалидный пакет от {address[0]}:{address[1]}")
                     continue
 
@@ -77,48 +63,53 @@ class TTMobileServer:
 
                 match opcode:
                     case self.opcodes.SESSION_INIT:
-                        deviceType, deviceName = await self.processors.session_init(payload, seq, writer)
+                        deviceType, deviceName = await self.processors.session_init(payload, seq, websocket)
                     case self.opcodes.PING:
-                        await self.processors.ping(payload, seq, writer)
+                        await self.processors.ping(payload, seq, websocket)
                     case self.opcodes.LOG:
-                        await self.processors.log(payload, seq, writer)
+                        await self.processors.log(payload, seq, websocket)
                     case self.opcodes.AUTH_REQUEST:
                         if not self.auth_rate_limiter.is_allowed(address[0]):
-                            await self.processors._send_error(seq, self.opcodes.AUTH_REQUEST, self.processors.error_types.RATE_LIMITED, writer)
+                            await self.processors._send_error(seq, self.opcodes.AUTH_REQUEST, self.processors.error_types.RATE_LIMITED, websocket)
                         else:
-                            await self.processors.auth_request(payload, seq, writer)
+                            await self.processors.auth_request(payload, seq, websocket)
                     case self.opcodes.AUTH:
                         if not self.auth_rate_limiter.is_allowed(address[0]):
-                            await self.processors._send_error(seq, self.opcodes.AUTH, self.processors.error_types.RATE_LIMITED, writer)
+                            await self.processors._send_error(seq, self.opcodes.AUTH, self.processors.error_types.RATE_LIMITED, websocket)
                         else:
-                            await self.processors.auth(payload, seq, writer)
+                            await self.processors.auth(payload, seq, websocket)
                     case self.opcodes.AUTH_CONFIRM:
                         if not self.auth_rate_limiter.is_allowed(address[0]):
-                            await self.processors._send_error(seq, self.opcodes.AUTH_CONFIRM, self.processors.error_types.RATE_LIMITED, writer)
+                            await self.processors._send_error(seq, self.opcodes.AUTH_CONFIRM, self.processors.error_types.RATE_LIMITED, websocket)
                         else:
-                            await self.processors.auth_confirm(payload, seq, writer, deviceType, deviceName)
+                            await self.processors.auth_confirm(payload, seq, websocket, deviceType, deviceName)
                     case self.opcodes.LOGIN:
                         if not self.auth_rate_limiter.is_allowed(address[0]):
-                            await self.processors._send_error(seq, self.opcodes.LOGIN, self.processors.error_types.RATE_LIMITED, writer)
+                            await self.processors._send_error(seq, self.opcodes.LOGIN, self.processors.error_types.RATE_LIMITED, websocket)
                         else:
-                            userPhone, userId, hashedToken = await self.processors.login(payload, seq, writer)
+                            userPhone, userId, hashedToken = await self.processors.login(payload, seq, websocket)
 
                             if userPhone:
-                                await self._finish_auth(writer, address, userPhone, userId)
+                                await self._finish_auth(websocket, address, userPhone, userId)
                     case self.opcodes.CONTACT_INFO:
                         await self.auth_required(
-                            userPhone, self.processors.contact_info, payload, seq, writer
+                            userPhone, self.processors.contact_info, payload, seq, websocket
                         )
                     case _:
                         self.logger.warning(f"Неизвестный опкод {opcode}")
+        except websockets.exceptions.ConnectionClosed:
+            self.logger.info(f"Прекратил работать с клиентом {address[0]}:{address[1]}")
         except Exception as e:
-            self.logger.error(f"Произошла ошибка при работе с клиентом {address[0]}:{address[1]}: {e}")
+            self.logger.error(f" Произошла ошибка при работе с клиентом {address[0]}:{address[1]}: {e}")
             traceback.print_exc()
 
-        writer.close()
-        self.logger.info(f"Прекратил работать работать с клиентом {address[0]}:{address[1]}")
+        # Удаляем клиента из словаря при отключении
+        if userId:
+            await self._end_session(userId, address[0], address[1])
+        
+        self.logger.info(f"Прекратил работать с клиентом {address[0]}:{address[1]}")
 
-    async def _finish_auth(self, writer, addr, phone, id):
+    async def _finish_auth(self, websocket, addr, phone, id):
         """Завершение открытия сессии"""
         # Ищем пользователя в словаре
         user = self.clients.get(id)
@@ -127,10 +118,10 @@ class TTMobileServer:
         if user:
             user["clients"].append(
                 {
-                    "writer": writer,
+                    "writer": websocket,
                     "ip": addr[0],
                     "port": addr[1],
-                    "protocol": "tamtam_mobile"
+                    "protocol": "tamtam_websocket"
                 }
             )
         else:
@@ -139,10 +130,10 @@ class TTMobileServer:
                 "id": id,
                 "clients": [
                     {
-                        "writer": writer,
+                        "writer": websocket,
                         "ip": addr[0],
                         "port": addr[1],
-                        "protocol": "tamtam_mobile"
+                        "protocol": "tamtam_websocket"
                     }
                 ]
             }
@@ -163,12 +154,14 @@ class TTMobileServer:
                 clients.pop(i)
 
     async def start(self):
-        """Функция для запуска сервера"""
-        self.server = await asyncio.start_server(
-            self.handle_client, self.host, self.port, ssl=self.ssl_context
+        """Функция для запуска WebSocket сервера"""
+        self.server = await websockets.serve(
+            self.handle_client,
+            self.host,
+            self.port,
+            ssl=self.ssl_context
         )
 
-        self.logger.info(f"Сокет запущен на порту {self.port}")
+        self.logger.info(f"TT WebSocket запущен на порту {self.port}")
 
-        async with self.server:
-            await self.server.serve_forever()
+        await self.server.wait_closed()

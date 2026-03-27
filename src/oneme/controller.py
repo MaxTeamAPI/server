@@ -6,7 +6,7 @@ from classes.controllerbase import ControllerBase
 from common.config import ServerConfig
 from common.opcodes import Opcodes
 
-class OnemeMobileController(ControllerBase):
+class OnemeController(ControllerBase):
     def __init__(self):
         self.config = ServerConfig()
         self.proto = MobileProto()

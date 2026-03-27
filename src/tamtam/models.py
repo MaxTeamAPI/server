@@ -6,7 +6,7 @@ class UserAgentModel(pydantic.BaseModel):
     osVersion: str
     timezone: str
     screen: str
-    pushDeviceType: str
+    pushDeviceType: str = None
     locale: str
     deviceName: str
     deviceLocale: str
