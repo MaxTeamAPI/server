@@ -4,11 +4,6 @@
 >
 > Использование в профессиональных средах не рекомендовано.
 > 
-# OpenMAX
-
-Эмулятор сервера MAX и ТамТам
-
-https://t.me/openmax_alerts
 
 # Требования
 
@@ -23,5 +18,4 @@ https://t.me/openmax_alerts
 
 # Дополнительная информация
 - [FAQ](faq/readme.md)
-- [Документация проекта](https://github.com/openmax-server/docs)
 - [Публичные сервера](faq/servers.md)
